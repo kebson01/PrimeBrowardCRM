@@ -30,10 +30,5 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port
 EXPOSE 80
 
-# Create startup script  
-RUN echo '#!/bin/sh\n\
-nginx -g "daemon off;"\n' > /start.sh && \
-    chmod +x /start.sh
-
-CMD ["/start.sh"]
+CMD ["nginx", "-g", "daemon off;"]
 
