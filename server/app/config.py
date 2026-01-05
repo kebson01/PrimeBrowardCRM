@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
@@ -10,21 +11,29 @@ class Settings(BaseSettings):
     API_HOST: str = os.getenv("API_HOST", "127.0.0.1")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
     
-    # CORS - allow React dev server and production frontend
-    CORS_ORIGINS: list = [
-        origin.strip() 
-        for origin in os.getenv(
-            "CORS_ORIGINS", 
-            "http://localhost:5173,http://127.0.0.1:5173"
-        ).split(",")
-        if origin.strip()
-    ]
+    # CORS - will be set in __init__
+    CORS_ORIGINS: list = None
     
     class Config:
         env_file = ".env"
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
+        # Parse CORS_ORIGINS - support both JSON array and comma-separated string
+        cors_env = os.getenv("CORS_ORIGINS", '["http://localhost:5173","http://127.0.0.1:5173"]')
+        
+        try:
+            # Try parsing as JSON array first (required by DigitalOcean)
+            self.CORS_ORIGINS = json.loads(cors_env)
+        except json.JSONDecodeError:
+            # Fall back to comma-separated string for local development
+            self.CORS_ORIGINS = [
+                origin.strip() 
+                for origin in cors_env.split(",")
+                if origin.strip()
+            ]
+        
         # Set data directory paths (can be overridden via env vars)
         data_dir_str = os.getenv("DATA_DIR", str(self.BASE_DIR.parent / "data"))
         self.DATA_DIR = Path(data_dir_str)
