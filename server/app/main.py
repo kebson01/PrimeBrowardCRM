@@ -75,11 +75,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers (no prefix - DigitalOcean handles /api routing)
-app.include_router(properties_router)
-app.include_router(leads_router)
-app.include_router(letters_router)
-app.include_router(import_export_router)
+# Include routers with /api prefix
+app.include_router(properties_router, prefix="/api")
+app.include_router(leads_router, prefix="/api")
+app.include_router(letters_router, prefix="/api")
+app.include_router(import_export_router, prefix="/api")
 
 
 @app.get("/")
@@ -93,7 +93,7 @@ def root():
     }
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health_check():
     """Health check endpoint"""
     from .models.database import SessionLocal
