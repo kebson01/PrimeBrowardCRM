@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigitalOcean App Spec - PrimeBroward CRM</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f7f9fc;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0069ff;
+            margin-top: 0;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0069ff;
+        }
+        .yaml-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        button {
+            background: #0069ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0052cc;
+        }
+        .success {
+            background: #00c875;
+            padding: 10px;
+            border-radius: 4px;
+            color: white;
+            display: none;
+            margin-top: 10px;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f7f9fc;
+            border-radius: 4px;
+        }
+        .step-number {
+            background: #0069ff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 PrimeBroward CRM - DigitalOcean Deployment</h1>
+        
+        <div class="instructions">
+            <strong>⚠️ Important:</strong> DigitalOcean's auto-detection is preventing Docker deployment.
+            Use this YAML spec to manually configure your app.
+        </div>
+
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>Copy the YAML spec below</strong>
+        </div>
+
+        <div class="yaml-box" id="yamlContent">name: primebroward-crm
+region: nyc
+
+services:
+  - name: api
+    github:
+      repo: kebson01/PrimeBrowardCRM
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile.api
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    envs:
+      - key: PORT
+        value: "8000"
+      - key: API_HOST
+        value: "0.0.0.0"
+      - key: API_PORT
+        value: "8000"
+      - key: DATABASE_PATH
+        value: "/app/data/primebroward.db"
+      - key: DATA_DIR
+        value: "/app/data"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: CORS_ORIGINS
+        value: "*"
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 5
+
+  - name: frontend
+    github:
+      repo: kebson01/PrimeBrowardCRM
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile.frontend
+    http_port: 80
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    envs:
+      - key: NODE_ENV
+        value: "production"</div>
+
+        <button onclick="copyYaml()">📋 Copy YAML to Clipboard</button>
+        <button onclick="downloadYaml()">💾 Download YAML File</button>
+        <div class="success" id="successMsg">✅ Copied to clipboard!</div>
+
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>In DigitalOcean, look for "Import from YAML" or "Use App Spec"</strong>
+            <p>This is usually found:</p>
+            <ul>
+                <li>On the main Apps page as a button next to "Create App"</li>
+                <li>Or as a link at the bottom of the app creation wizard</li>
+                <li>Or in a dropdown menu when creating an app</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Paste the YAML and create the app</strong>
+            <p>Once you find the YAML import option, paste the spec and click create.</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>Alternative: Use doctl CLI</strong>
+            <p>If you can't find the YAML import in the UI, open PowerShell and run:</p>
+            <div class="yaml-box" style="background: #2d2d2d; color: #0f0;">
+cd C:\Users\Saint\Documents\GitHub\PrimeBrowardCRM
+
+# Authenticate (you'll need an API token from DigitalOcean)
+doctl auth init
+
+# Create the app
+doctl apps create --spec .do\app.yaml
+            </div>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3>🔗 Helpful Links</h3>
+        <ul>
+            <li><a href="https://cloud.digitalocean.com/apps" target="_blank">DigitalOcean Apps Dashboard</a></li>
+            <li><a href="https://cloud.digitalocean.com/account/api/tokens" target="_blank">Create API Token (for doctl)</a></li>
+            <li><a href="https://docs.digitalocean.com/products/app-platform/how-to/create-apps/" target="_blank">DigitalOcean App Platform Documentation</a></li>
+        </ul>
+    </div>
+
+    <script>
+        function copyYaml() {
+            const yamlText = document.getElementById('yamlContent').textContent;
+            navigator.clipboard.writeText(yamlText).then(() => {
+                const msg = document.getElementById('successMsg');
+                msg.style.display = 'block';
+                setTimeout(() => {
+                    msg.style.display = 'none';
+                }, 3000);
+            });
+        }
+
+        function downloadYaml() {
+            const yamlText = document.getElementById('yamlContent').textContent;
+            const blob = new Blob([yamlText], { type: 'text/yaml' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'app.yaml';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
+

@@ -157,6 +157,18 @@ def root():
     }
 
 
+@app.get("/ping")
+def ping():
+    """Simple health check - no database required"""
+    return {"status": "ok"}
+
+
+@app.get("/api/ping")
+def api_ping():
+    """Simple health check for /api route - no database required"""
+    return {"status": "ok"}
+
+
 @app.get("/api/health")
 def api_health_check():
     """Health check endpoint for DigitalOcean (direct service access)"""
