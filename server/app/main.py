@@ -1,123 +1,62 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+import os
 
 from .config import settings
-from .models import init_db, get_db, Base, engine
-from .services import LetterService
 from .routes import properties_router, leads_router, letters_router, import_export_router
+
+
+# Flag to track if initialization is complete
+_initialized = False
+
+
+def lazy_init():
+    """Lazy initialization - called on first real request, not during startup"""
+    global _initialized
+    if _initialized:
+        return
+    
+    try:
+        # Create directories
+        os.makedirs(settings.DATA_DIR, exist_ok=True)
+        os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
+        os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
+        os.makedirs(settings.LETTERS_DIR, exist_ok=True)
+        
+        # Initialize database
+        from .models import init_db
+        init_db()
+        
+        # Initialize templates
+        from .models.database import SessionLocal
+        from .services import LetterService
+        db = SessionLocal()
+        try:
+            LetterService.init_default_templates(db)
+        except:
+            pass
+        finally:
+            db.close()
+        
+        _initialized = True
+        print("[*] Lazy initialization complete", flush=True)
+    except Exception as e:
+        print(f"[!] Lazy init error: {e}", flush=True)
+        _initialized = True  # Don't retry on every request
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    print("[*] Starting PrimeBroward CRM API...", flush=True)
-    print(f"[*] Python version: {__import__('sys').version}", flush=True)
-    print(f"[*] Working directory: {__import__('os').getcwd()}", flush=True)
-    
-    try:
-        # Ensure data directories exist
-        import os
-        print(f"[*] DATA_DIR setting: {settings.DATA_DIR}", flush=True)
-        print(f"[*] DATABASE_PATH setting: {settings.DATABASE_PATH}", flush=True)
-        
-        try:
-            os.makedirs(settings.DATA_DIR, exist_ok=True)
-            os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
-            os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
-            os.makedirs(settings.LETTERS_DIR, exist_ok=True)
-            print(f"[*] Data directories created successfully: {settings.DATA_DIR}", flush=True)
-        except Exception as dir_error:
-            print(f"[!] Warning: Could not create data directories: {dir_error}", flush=True)
-            print(f"[*] Continuing anyway...", flush=True)
-        
-        # Initialize database
-        print(f"[*] Initializing database...", flush=True)
-        try:
-            init_db()
-            print(f"[*] Database initialized successfully: {settings.DATABASE_PATH}", flush=True)
-        except Exception as db_error:
-            print(f"[!] Error initializing database: {db_error}", flush=True)
-            raise
-        
-        # Auto-import CSV from DigitalOcean Spaces on first startup
-        csv_url = os.getenv("CSV_URL", "")
-        if csv_url:
-            from .models.database import SessionLocal
-            from .models.property import Property
-            
-            # Check if database is empty
-            db = SessionLocal()
-            try:
-                property_count = db.query(Property).count()
-                if property_count == 0:
-                    print(f"[*] Database is empty. Downloading and importing CSV from: {csv_url}")
-                    print(f"[*] This will take 10-15 minutes on first startup...")
-                    
-                    import urllib.request
-                    import tempfile
-                    
-                    # Download CSV to temp file
-                    temp_csv = tempfile.NamedTemporaryFile(mode='w+b', suffix='.csv', delete=False)
-                    try:
-                        print(f"[*] Downloading CSV (this may take a few minutes)...")
-                        urllib.request.urlretrieve(csv_url, temp_csv.name)
-                        print(f"[*] CSV downloaded. Starting import...")
-                        
-                        # Import the CSV
-                        from .services.csv_service import CSVService
-                        result = CSVService.import_csv(db, temp_csv.name)
-                        
-                        print(f"[*] CSV import complete! Imported {result.get('imported', 0)} new records, updated {result.get('updated', 0)} existing records")
-                    except Exception as e:
-                        print(f"[!] Failed to download/import CSV: {e}")
-                        import traceback
-                        traceback.print_exc()
-                    finally:
-                        # Clean up temp file
-                        try:
-                            os.unlink(temp_csv.name)
-                        except:
-                            pass
-                else:
-                    print(f"[*] Database already has {property_count} properties. Skipping CSV import.")
-            finally:
-                db.close()
-        
-        # Initialize default letter templates (non-critical)
-        print(f"[*] Initializing letter templates...", flush=True)
-        try:
-            from .models.database import SessionLocal
-            db = SessionLocal()
-            try:
-                LetterService.init_default_templates(db)
-                print("[*] Letter templates initialized successfully", flush=True)
-            except Exception as template_error:
-                print(f"[!] Warning: Could not initialize templates: {template_error}", flush=True)
-                print(f"[*] This is non-critical, continuing...", flush=True)
-            finally:
-                db.close()
-        except Exception as e:
-            print(f"[!] Warning: Template initialization failed: {e}", flush=True)
-        
-        print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}", flush=True)
-        print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs", flush=True)
-        print(f"[*] Health check available at /api/health and /health", flush=True)
-    except Exception as e:
-        print(f"[!] FATAL Error during startup: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        raise
-    
+    """Minimal lifespan - just log startup"""
+    print("[*] PrimeBroward CRM API starting...", flush=True)
+    print(f"[*] Port: {settings.API_PORT}", flush=True)
+    print("[*] Server ready to accept connections", flush=True)
     yield
-    
-    # Shutdown
-    print("[*] Shutting down...")
+    print("[*] Shutting down...", flush=True)
 
 
-# Create FastAPI app
+# Create FastAPI app with minimal startup
 app = FastAPI(
     title="PrimeBroward CRM API",
     description="Wholesale Real Estate CRM for Broward County",
@@ -126,97 +65,61 @@ app = FastAPI(
 )
 
 # Configure CORS
-# In production, use specific origins. For now, allow all for easier deployment
-cors_origins = settings.CORS_ORIGINS if settings.CORS_ORIGINS else ["*"]
-if "*" not in cors_origins:
-    cors_origins = cors_origins + ["*"]  # Allow all for initial deployment
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers WITHOUT prefix (DigitalOcean strips /api when routing)
+# Include routers
 app.include_router(properties_router)
 app.include_router(leads_router)
 app.include_router(letters_router)
 app.include_router(import_export_router)
 
 
+# ============= HEALTH CHECK ENDPOINTS (NO DEPENDENCIES) =============
+
 @app.get("/")
 def root():
-    """Root endpoint"""
-    return {
-        "name": "PrimeBroward CRM API",
-        "version": "1.0.0",
-        "status": "running",
-        "docs": "/docs"
-    }
+    """Root endpoint - immediate response"""
+    return {"status": "running", "name": "PrimeBroward CRM API"}
 
 
 @app.get("/ping")
 def ping():
-    """Simple health check - no database required"""
+    """Simple ping - immediate response, no dependencies"""
     return {"status": "ok"}
 
 
 @app.get("/api/ping")
 def api_ping():
-    """Simple health check for /api route - no database required"""
+    """Simple ping for /api route"""
     return {"status": "ok"}
 
 
-@app.get("/api/health")
-def api_health_check():
-    """Health check endpoint for DigitalOcean (direct service access)"""
-    from .models.database import SessionLocal
-    from sqlalchemy import text
-    
-    try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-    
-    return {
-        "status": "healthy",
-        "database": db_status,
-        "data_dir": str(settings.DATA_DIR)
-    }
-
-
 @app.get("/health")
-def health_check():
-    """Health check endpoint for direct access"""
-    from .models.database import SessionLocal
-    from sqlalchemy import text
-    
-    try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-    
-    return {
-        "status": "healthy",
-        "database": db_status,
-        "data_dir": str(settings.DATA_DIR)
-    }
+def health():
+    """Health check - immediate response"""
+    return {"status": "healthy"}
 
 
-# For running directly with: python -m app.main
+@app.get("/api/health")
+def api_health():
+    """Health check for /api route"""
+    # Do lazy init on health check (after server is accepting connections)
+    lazy_init()
+    return {"status": "healthy", "initialized": _initialized}
+
+
+# For running directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "app.main:app",
-        host=settings.API_HOST,
-        port=settings.API_PORT,
-        reload=True
+        "server.app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        workers=1
     )
