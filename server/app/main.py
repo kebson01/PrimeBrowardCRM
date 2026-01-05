@@ -23,10 +23,12 @@ def lazy_init():
         os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
         os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
         os.makedirs(settings.LETTERS_DIR, exist_ok=True)
+        print(f"[*] Directories created: {settings.DATA_DIR}", flush=True)
         
         # Initialize database
         from .models import init_db
         init_db()
+        print(f"[*] Database initialized: {settings.DATABASE_PATH}", flush=True)
         
         # Initialize templates
         from .models.database import SessionLocal
@@ -34,6 +36,7 @@ def lazy_init():
         db = SessionLocal()
         try:
             LetterService.init_default_templates(db)
+            print("[*] Letter templates initialized", flush=True)
         except:
             pass
         finally:
@@ -44,6 +47,62 @@ def lazy_init():
     except Exception as e:
         print(f"[!] Lazy init error: {e}", flush=True)
         _initialized = True  # Don't retry on every request
+
+
+# Track CSV import status
+_csv_import_status = {"status": "not_started", "message": ""}
+
+
+def import_csv_data():
+    """Import CSV data from DigitalOcean Spaces - runs in background"""
+    global _csv_import_status
+    
+    csv_url = os.getenv("CSV_URL", "")
+    if not csv_url:
+        _csv_import_status = {"status": "skipped", "message": "No CSV_URL configured"}
+        return
+    
+    try:
+        from .models.database import SessionLocal
+        from .models.property import Property
+        
+        db = SessionLocal()
+        try:
+            property_count = db.query(Property).count()
+            if property_count > 0:
+                _csv_import_status = {"status": "skipped", "message": f"Database already has {property_count} properties"}
+                print(f"[*] Database already has {property_count} properties. Skipping CSV import.", flush=True)
+                return
+            
+            _csv_import_status = {"status": "downloading", "message": "Downloading CSV..."}
+            print(f"[*] Downloading CSV from: {csv_url}", flush=True)
+            
+            import urllib.request
+            import tempfile
+            
+            temp_csv = tempfile.NamedTemporaryFile(mode='w+b', suffix='.csv', delete=False)
+            try:
+                urllib.request.urlretrieve(csv_url, temp_csv.name)
+                print(f"[*] CSV downloaded. Starting import...", flush=True)
+                
+                _csv_import_status = {"status": "importing", "message": "Importing CSV data..."}
+                
+                from .services.csv_service import CSVService
+                result = CSVService.import_csv(db, temp_csv.name)
+                
+                msg = f"Imported {result.get('imported', 0)} new, updated {result.get('updated', 0)} existing"
+                _csv_import_status = {"status": "complete", "message": msg}
+                print(f"[*] CSV import complete! {msg}", flush=True)
+            finally:
+                try:
+                    os.unlink(temp_csv.name)
+                except:
+                    pass
+        finally:
+            db.close()
+    except Exception as e:
+        _csv_import_status = {"status": "error", "message": str(e)}
+        print(f"[!] CSV import error: {e}", flush=True)
 
 
 @asynccontextmanager
@@ -109,9 +168,57 @@ def health():
 @app.get("/api/health")
 def api_health():
     """Health check for /api route"""
+    import threading
+    
     # Do lazy init on health check (after server is accepting connections)
     lazy_init()
-    return {"status": "healthy", "initialized": _initialized}
+    
+    # Auto-start CSV import in background if not started yet
+    if _csv_import_status.get("status") == "not_started":
+        thread = threading.Thread(target=import_csv_data)
+        thread.daemon = True
+        thread.start()
+    
+    return {"status": "healthy", "initialized": _initialized, "csv_import": _csv_import_status.get("status")}
+
+
+@app.post("/api/import-csv")
+def trigger_csv_import():
+    """Manually trigger CSV import from DigitalOcean Spaces"""
+    import threading
+    
+    lazy_init()  # Make sure DB is ready
+    
+    if _csv_import_status.get("status") in ["downloading", "importing"]:
+        return {"message": "Import already in progress", "status": _csv_import_status}
+    
+    # Run import in background thread
+    thread = threading.Thread(target=import_csv_data)
+    thread.start()
+    
+    return {"message": "CSV import started in background", "status": _csv_import_status}
+
+
+@app.get("/api/import-status")
+def get_import_status():
+    """Check CSV import status"""
+    from .models.database import SessionLocal
+    from .models.property import Property
+    
+    lazy_init()
+    
+    db = SessionLocal()
+    try:
+        property_count = db.query(Property).count()
+    except:
+        property_count = 0
+    finally:
+        db.close()
+    
+    return {
+        "import_status": _csv_import_status,
+        "property_count": property_count
+    }
 
 
 # For running directly
