@@ -11,6 +11,7 @@ services:
     http_port: 8000
     instance_count: 1
     instance_size_slug: basic-xs
+    run_command: python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     envs:
       - key: API_HOST
         value: "0.0.0.0"
@@ -39,9 +40,9 @@ services:
     http_port: 80
     instance_count: 1
     instance_size_slug: basic-xxs
+    run_command: nginx -g "daemon off;"
     routes:
       - path: /
-    build_command: npm run build
     envs:
       - key: NODE_ENV
         value: "production"

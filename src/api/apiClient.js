@@ -3,7 +3,23 @@
  * Connects to the Python FastAPI backend
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+// Get API URL from environment variable (build time) or runtime config
+const getApiUrl = () => {
+  // First, try build-time environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Then, try runtime config (for production)
+  if (typeof window !== 'undefined' && window.APP_CONFIG?.API_URL) {
+    return window.APP_CONFIG.API_URL;
+  }
+  
+  // Fallback to localhost for development
+  return 'http://127.0.0.1:8000/api';
+};
+
+const API_URL = getApiUrl();
 
 /**
  * Make an API request
