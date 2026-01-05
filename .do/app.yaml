@@ -28,6 +28,8 @@ services:
         value: "1"
       - key: CORS_ORIGINS
         value: '["*"]'
+      - key: DATABASE_URL
+        value: ""
     health_check:
       http_path: /api/health
       initial_delay_seconds: 60
