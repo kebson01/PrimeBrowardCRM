@@ -15,21 +15,37 @@ async def lifespan(app: FastAPI):
     # Startup
     print("[*] Starting PrimeBroward CRM API...")
     
-    # Initialize database
-    init_db()
-    print(f"[*] Database: {settings.DATABASE_PATH}")
-    
-    # Initialize default letter templates
-    from .models.database import SessionLocal
-    db = SessionLocal()
     try:
-        LetterService.init_default_templates(db)
-        print("[*] Letter templates initialized")
-    finally:
-        db.close()
-    
-    print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}")
-    print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs")
+        # Ensure data directories exist
+        import os
+        os.makedirs(settings.DATA_DIR, exist_ok=True)
+        os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
+        os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
+        os.makedirs(settings.LETTERS_DIR, exist_ok=True)
+        print(f"[*] Data directories created: {settings.DATA_DIR}")
+        
+        # Initialize database
+        init_db()
+        print(f"[*] Database initialized: {settings.DATABASE_PATH}")
+        
+        # Initialize default letter templates
+        from .models.database import SessionLocal
+        db = SessionLocal()
+        try:
+            LetterService.init_default_templates(db)
+            print("[*] Letter templates initialized")
+        except Exception as e:
+            print(f"[!] Warning: Could not initialize templates: {e}")
+        finally:
+            db.close()
+        
+        print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}")
+        print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs")
+    except Exception as e:
+        print(f"[!] Error during startup: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     yield
     
@@ -46,9 +62,14 @@ app = FastAPI(
 )
 
 # Configure CORS
+# In production, use specific origins. For now, allow all for easier deployment
+cors_origins = settings.CORS_ORIGINS if settings.CORS_ORIGINS else ["*"]
+if "*" not in cors_origins:
+    cors_origins = cors_origins + ["*"]  # Allow all for initial deployment
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS + ["*"],  # Allow all for development
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
