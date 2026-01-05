@@ -86,16 +86,21 @@ async def lifespan(app: FastAPI):
             finally:
                 db.close()
         
-        # Initialize default letter templates
-        from .models.database import SessionLocal
-        db = SessionLocal()
+        # Initialize default letter templates (non-critical)
+        print(f"[*] Initializing letter templates...", flush=True)
         try:
-            LetterService.init_default_templates(db)
-            print("[*] Letter templates initialized")
+            from .models.database import SessionLocal
+            db = SessionLocal()
+            try:
+                LetterService.init_default_templates(db)
+                print("[*] Letter templates initialized successfully", flush=True)
+            except Exception as template_error:
+                print(f"[!] Warning: Could not initialize templates: {template_error}", flush=True)
+                print(f"[*] This is non-critical, continuing...", flush=True)
+            finally:
+                db.close()
         except Exception as e:
-            print(f"[!] Warning: Could not initialize templates: {e}")
-        finally:
-            db.close()
+            print(f"[!] Warning: Template initialization failed: {e}", flush=True)
         
         print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}", flush=True)
         print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs", flush=True)
