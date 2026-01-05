@@ -24,21 +24,53 @@ async def lifespan(app: FastAPI):
         os.makedirs(settings.LETTERS_DIR, exist_ok=True)
         print(f"[*] Data directories created: {settings.DATA_DIR}")
         
-        # Download pre-populated database from DigitalOcean Spaces if configured
-        db_url = os.getenv("DATABASE_URL", "")
-        if db_url and not settings.DATABASE_PATH.exists():
-            print(f"[*] Downloading pre-populated database from: {db_url}")
-            import urllib.request
-            try:
-                urllib.request.urlretrieve(db_url, str(settings.DATABASE_PATH))
-                print(f"[*] Database downloaded successfully: {settings.DATABASE_PATH}")
-            except Exception as e:
-                print(f"[!] Failed to download database: {e}")
-                print(f"[*] Will create empty database instead")
-        
         # Initialize database
         init_db()
         print(f"[*] Database initialized: {settings.DATABASE_PATH}")
+        
+        # Auto-import CSV from DigitalOcean Spaces on first startup
+        csv_url = os.getenv("CSV_URL", "")
+        if csv_url:
+            from .models.database import SessionLocal
+            from .models.property import Property
+            
+            # Check if database is empty
+            db = SessionLocal()
+            try:
+                property_count = db.query(Property).count()
+                if property_count == 0:
+                    print(f"[*] Database is empty. Downloading and importing CSV from: {csv_url}")
+                    print(f"[*] This will take 10-15 minutes on first startup...")
+                    
+                    import urllib.request
+                    import tempfile
+                    
+                    # Download CSV to temp file
+                    temp_csv = tempfile.NamedTemporaryFile(mode='w+b', suffix='.csv', delete=False)
+                    try:
+                        print(f"[*] Downloading CSV (this may take a few minutes)...")
+                        urllib.request.urlretrieve(csv_url, temp_csv.name)
+                        print(f"[*] CSV downloaded. Starting import...")
+                        
+                        # Import the CSV
+                        from .services.import_export import ImportExportService
+                        result = ImportExportService.import_csv_file(db, temp_csv.name)
+                        
+                        print(f"[*] CSV import complete! Imported {result.get('records_imported', 0)} records")
+                    except Exception as e:
+                        print(f"[!] Failed to download/import CSV: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    finally:
+                        # Clean up temp file
+                        try:
+                            os.unlink(temp_csv.name)
+                        except:
+                            pass
+                else:
+                    print(f"[*] Database already has {property_count} properties. Skipping CSV import.")
+            finally:
+                db.close()
         
         # Initialize default letter templates
         from .models.database import SessionLocal
