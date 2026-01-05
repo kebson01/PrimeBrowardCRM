@@ -1,26 +1,74 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  MapPin, ExternalLink, Home, School, Map, DollarSign, 
-  Image, Building2, Navigation, Camera, GraduationCap,
-  TrendingUp, Star
+  ExternalLink, Home, TrendingUp
 } from "lucide-react";
+
+// Expand common Broward County city abbreviations for better geocoding
+const expandCityName = (city) => {
+  if (!city) return '';
+  
+  const cityMap = {
+    'HW': 'Hollywood',
+    'FW': 'Fort Lauderdale',
+    'PL': 'Plantation',
+    'PM': 'Pompano Beach',
+    'DL': 'Deerfield Beach',
+    'CO': 'Coral Springs',
+    'MR': 'Miramar',
+    'PB': 'Pembroke Pines',
+    'WS': 'Weston',
+    'DA': 'Davie',
+    'SS': 'Sunrise',
+    'TM': 'Tamarac',
+    'LR': 'Lauderhill',
+    'OP': 'Oakland Park',
+    'WL': 'Wilton Manors',
+    'LH': 'Lighthouse Point',
+    'DP': 'Dania Beach',
+    'HL': 'Hallandale Beach',
+    'MB': 'Margate',
+    'NP': 'North Lauderdale',
+    'CP': 'Coconut Creek',
+    'PP': 'Parkland',
+    'CS': 'Cooper City',
+    'SW': 'Southwest Ranches',
+  };
+  
+  const upperCity = city.toUpperCase().trim();
+  return cityMap[upperCity] || city;
+};
 
 // Build search URLs for various services
 const buildSearchUrls = (property) => {
   if (!property) return {};
   
-  const address = [
+  // Build street address
+  const streetParts = [
     property.situs_street_number,
     property.situs_street_name,
     property.situs_street_type
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean);
   
-  const fullAddress = `${address}, ${property.situs_city || 'FL'}, FL ${property.situs_zip || ''}`;
+  const streetAddress = streetParts.join(' ');
+  
+  // Build full address with proper comma separation for better geocoding
+  const addressParts = [streetAddress];
+  
+  if (property.situs_city) {
+    // Expand city abbreviation for better geocoding
+    const expandedCity = expandCityName(property.situs_city);
+    addressParts.push(expandedCity);
+  }
+  
+  addressParts.push('FL');
+  
+  if (property.situs_zip) {
+    addressParts.push(property.situs_zip);
+  }
+  
+  const fullAddress = addressParts.join(', ');
   const encodedAddress = encodeURIComponent(fullAddress);
   const encodedCity = encodeURIComponent(property.situs_city || 'Broward County');
   const encodedZip = encodeURIComponent(property.situs_zip || '');
@@ -54,45 +102,8 @@ const buildSearchUrls = (property) => {
   };
 };
 
-// Google Maps Embed URL (no API key required for basic embed)
-const getGoogleMapsEmbedUrl = (property) => {
-  if (!property) return '';
-  
-  const address = [
-    property.situs_street_number,
-    property.situs_street_name,
-    property.situs_street_type,
-    property.situs_city,
-    'FL',
-    property.situs_zip
-  ].filter(Boolean).join(' ');
-  
-  return `https://maps.google.com/maps?q=${encodeURIComponent(address)}&t=k&z=18&output=embed`;
-};
-
-// Street View Static Image URL (basic, works without API key for low volume)
-const getStreetViewUrl = (property) => {
-  if (!property) return '';
-  
-  const address = [
-    property.situs_street_number,
-    property.situs_street_name,
-    property.situs_street_type,
-    property.situs_city,
-    'FL',
-    property.situs_zip
-  ].filter(Boolean).join(' ');
-  
-  // This creates a link to open Street View
-  return `https://www.google.com/maps?q=${encodeURIComponent(address)}&layer=c&cbll=0,0&cbp=11,0,0,0,0`;
-};
-
 export default function PropertyEnrichment({ property }) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [showMap, setShowMap] = useState(false);
-  
   const urls = useMemo(() => buildSearchUrls(property), [property]);
-  const mapsEmbedUrl = useMemo(() => getGoogleMapsEmbedUrl(property), [property]);
   
   if (!property) return null;
 
@@ -145,70 +156,6 @@ export default function PropertyEnrichment({ property }) {
           <p className="mt-2 text-xs text-amber-700 text-center">
             Search for: <span className="font-mono bg-amber-100 px-1 rounded">{fullAddress}</span>
           </p>
-        </CardContent>
-      </Card>
-
-      {/* Property Image / Map Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Camera className="h-4 w-4 text-blue-600" />
-              Property View
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant={!showMap ? "default" : "outline"}
-                onClick={() => setShowMap(false)}
-                className="h-7 text-xs"
-              >
-                <Map className="h-3 w-3 mr-1" />
-                Satellite
-              </Button>
-              <Button
-                size="sm"
-                variant={showMap ? "default" : "outline"}
-                onClick={() => setShowMap(true)}
-                className="h-7 text-xs"
-              >
-                <Navigation className="h-3 w-3 mr-1" />
-                Street
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="relative w-full h-48 bg-slate-100 overflow-hidden rounded-b-lg">
-            {!showMap ? (
-              // Satellite/Map View
-              <iframe
-                src={mapsEmbedUrl}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Property Map"
-                className="absolute inset-0"
-              />
-            ) : (
-              // Street View Link/Placeholder
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                <Camera className="h-12 w-12 text-slate-400 mb-3" />
-                <p className="text-sm text-slate-600 mb-3">View Street Level Photos</p>
-                <Button
-                  size="sm"
-                  onClick={() => window.open(urls.googleStreetView, '_blank')}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Navigation className="h-4 w-4 mr-2" />
-                  Open Street View
-                </Button>
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 
@@ -283,133 +230,6 @@ export default function PropertyEnrichment({ property }) {
               <p className="text-xs text-emerald-600">Official Records</p>
             </div>
             <ExternalLink className="h-3 w-3 opacity-50" />
-          </a>
-        </CardContent>
-      </Card>
-
-      {/* Schools Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <GraduationCap className="h-4 w-4 text-purple-600" />
-            Nearby Schools
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <a
-              href={urls.greatSchools}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-3 rounded-lg border transition-all hover:shadow-md bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-            >
-              <div className="h-10 w-10 rounded-lg bg-purple-600 flex items-center justify-center">
-                <Star className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <span className="font-medium">GreatSchools</span>
-                <p className="text-xs text-purple-600">View ratings & reviews for schools near {property.situs_zip}</p>
-              </div>
-              <ExternalLink className="h-4 w-4 opacity-50" />
-            </a>
-            
-            <a
-              href={urls.niche}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-3 rounded-lg border transition-all hover:shadow-md bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
-            >
-              <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
-                <School className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <span className="font-medium">Niche</span>
-                <p className="text-xs text-indigo-600">School rankings & neighborhood grades</p>
-              </div>
-              <ExternalLink className="h-4 w-4 opacity-50" />
-            </a>
-          </div>
-          
-          <div className="mt-3 p-3 bg-slate-50 rounded-lg">
-            <p className="text-xs text-slate-500">
-              💡 <strong>Tip:</strong> Schools significantly impact property values. Properties in top-rated school districts typically command 10-20% higher prices.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Rental Estimates */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-600" />
-            Rental Estimates
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2">
-          <a
-            href={urls.rentometer}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-all hover:shadow-md bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
-          >
-            <div className="h-6 w-6 rounded bg-green-600 flex items-center justify-center">
-              <DollarSign className="h-4 w-4 text-white" />
-            </div>
-            <div className="flex-1">
-              <span className="text-sm font-medium">Rentometer</span>
-              <p className="text-xs text-green-600">Rent Comps</p>
-            </div>
-            <ExternalLink className="h-3 w-3 opacity-50" />
-          </a>
-          
-          <a
-            href={urls.zillow_rent}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-all hover:shadow-md bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-          >
-            <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">Z</span>
-            </div>
-            <div className="flex-1">
-              <span className="text-sm font-medium">Zillow Rentals</span>
-              <p className="text-xs text-blue-600">Rent Zestimate</p>
-            </div>
-            <ExternalLink className="h-3 w-3 opacity-50" />
-          </a>
-        </CardContent>
-      </Card>
-
-      {/* Maps & Navigation */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-red-600" />
-            Maps & Navigation
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2">
-          <a
-            href={urls.googleMaps}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-md bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-          >
-            <Map className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium">Google Maps</span>
-            <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
-          </a>
-          
-          <a
-            href={urls.googleStreetView}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-md bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-          >
-            <Navigation className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">Street View</span>
-            <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
           </a>
         </CardContent>
       </Card>
