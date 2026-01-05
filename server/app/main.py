@@ -53,10 +53,10 @@ async def lifespan(app: FastAPI):
                         print(f"[*] CSV downloaded. Starting import...")
                         
                         # Import the CSV
-                        from .services.import_export import ImportExportService
-                        result = ImportExportService.import_csv_file(db, temp_csv.name)
+                        from .services.csv_service import CSVService
+                        result = CSVService.import_csv(db, temp_csv.name)
                         
-                        print(f"[*] CSV import complete! Imported {result.get('records_imported', 0)} records")
+                        print(f"[*] CSV import complete! Imported {result.get('imported', 0)} new records, updated {result.get('updated', 0)} existing records")
                     except Exception as e:
                         print(f"[!] Failed to download/import CSV: {e}")
                         import traceback
@@ -188,4 +188,3 @@ if __name__ == "__main__":
         port=settings.API_PORT,
         reload=True
     )
-
