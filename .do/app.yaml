@@ -28,8 +28,6 @@ services:
         value: "1"
       - key: CORS_ORIGINS
         value: '["*"]'
-      - key: CSV_URL
-        value: "https://primebroward-data.sfo3.digitaloceanspaces.com/BCPA_TAX_ROLL-12-31-25.csv"
     health_check:
       http_path: /api/health
       initial_delay_seconds: 60
