@@ -13,20 +13,34 @@ from .routes import properties_router, leads_router, letters_router, import_expo
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    print("[*] Starting PrimeBroward CRM API...")
+    print("[*] Starting PrimeBroward CRM API...", flush=True)
+    print(f"[*] Python version: {__import__('sys').version}", flush=True)
+    print(f"[*] Working directory: {__import__('os').getcwd()}", flush=True)
     
     try:
         # Ensure data directories exist
         import os
-        os.makedirs(settings.DATA_DIR, exist_ok=True)
-        os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
-        os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
-        os.makedirs(settings.LETTERS_DIR, exist_ok=True)
-        print(f"[*] Data directories created: {settings.DATA_DIR}")
+        print(f"[*] DATA_DIR setting: {settings.DATA_DIR}", flush=True)
+        print(f"[*] DATABASE_PATH setting: {settings.DATABASE_PATH}", flush=True)
+        
+        try:
+            os.makedirs(settings.DATA_DIR, exist_ok=True)
+            os.makedirs(settings.TEMPLATES_DIR, exist_ok=True)
+            os.makedirs(settings.EXPORTS_DIR, exist_ok=True)
+            os.makedirs(settings.LETTERS_DIR, exist_ok=True)
+            print(f"[*] Data directories created successfully: {settings.DATA_DIR}", flush=True)
+        except Exception as dir_error:
+            print(f"[!] Warning: Could not create data directories: {dir_error}", flush=True)
+            print(f"[*] Continuing anyway...", flush=True)
         
         # Initialize database
-        init_db()
-        print(f"[*] Database initialized: {settings.DATABASE_PATH}")
+        print(f"[*] Initializing database...", flush=True)
+        try:
+            init_db()
+            print(f"[*] Database initialized successfully: {settings.DATABASE_PATH}", flush=True)
+        except Exception as db_error:
+            print(f"[!] Error initializing database: {db_error}", flush=True)
+            raise
         
         # Auto-import CSV from DigitalOcean Spaces on first startup
         csv_url = os.getenv("CSV_URL", "")
@@ -83,10 +97,11 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
         
-        print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}")
-        print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs")
+        print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}", flush=True)
+        print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs", flush=True)
+        print(f"[*] Health check available at /api/health and /health", flush=True)
     except Exception as e:
-        print(f"[!] Error during startup: {e}")
+        print(f"[!] FATAL Error during startup: {e}", flush=True)
         import traceback
         traceback.print_exc()
         raise
