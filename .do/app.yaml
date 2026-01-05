@@ -29,12 +29,12 @@ services:
       - key: CORS_ORIGINS
         value: '["*"]'
     health_check:
-      http_path: /api/health
-      initial_delay_seconds: 60
+      http_path: /health
+      initial_delay_seconds: 30
       period_seconds: 10
       timeout_seconds: 5
       success_threshold: 1
-      failure_threshold: 5
+      failure_threshold: 3
 
   - name: frontend
     github:
