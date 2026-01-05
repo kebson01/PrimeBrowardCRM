@@ -5,19 +5,14 @@
   
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
     
     // DigitalOcean App Platform detection
     if (hostname.includes('ondigitalocean.app')) {
-      // Try to construct API URL from frontend URL
-      // Frontend: primebroward-crm-frontend-xxxxx.ondigitalocean.app
-      // API: primebroward-crm-api-xxxxx.ondigitalocean.app
-      const parts = hostname.split('.');
-      if (parts[0].includes('frontend')) {
-        apiUrl = 'https://' + parts[0].replace('frontend', 'api') + '.' + parts.slice(1).join('.') + '/api';
-      } else {
-        // Fallback: try common pattern
-        apiUrl = window.location.origin.replace(/frontend/i, 'api') + '/api';
-      }
+      // Both frontend and API are under the same domain
+      // Frontend: https://primebroward-crm-gdyar.ondigitalocean.app/
+      // API: https://primebroward-crm-gdyar.ondigitalocean.app/api
+      apiUrl = window.location.origin + '/api';
     }
   }
   
@@ -25,4 +20,3 @@
     API_URL: apiUrl
   };
 })();
-
