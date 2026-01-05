@@ -1,0 +1,105 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+
+from .config import settings
+from .models import init_db, get_db, Base, engine
+from .services import LetterService
+from .routes import properties_router, leads_router, letters_router, import_export_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    print("[*] Starting PrimeBroward CRM API...")
+    
+    # Initialize database
+    init_db()
+    print(f"[*] Database: {settings.DATABASE_PATH}")
+    
+    # Initialize default letter templates
+    from .models.database import SessionLocal
+    db = SessionLocal()
+    try:
+        LetterService.init_default_templates(db)
+        print("[*] Letter templates initialized")
+    finally:
+        db.close()
+    
+    print(f"[OK] API ready at http://{settings.API_HOST}:{settings.API_PORT}")
+    print(f"[*] API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs")
+    
+    yield
+    
+    # Shutdown
+    print("[*] Shutting down...")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="PrimeBroward CRM API",
+    description="Wholesale Real Estate CRM for Broward County",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS + ["*"],  # Allow all for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(properties_router, prefix="/api")
+app.include_router(leads_router, prefix="/api")
+app.include_router(letters_router, prefix="/api")
+app.include_router(import_export_router, prefix="/api")
+
+
+@app.get("/")
+def root():
+    """Root endpoint"""
+    return {
+        "name": "PrimeBroward CRM API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs"
+    }
+
+
+@app.get("/api/health")
+def health_check():
+    """Health check endpoint"""
+    from .models.database import SessionLocal
+    from sqlalchemy import text
+    
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    return {
+        "status": "healthy",
+        "database": db_status,
+        "data_dir": str(settings.DATA_DIR)
+    }
+
+
+# For running directly with: python -m app.main
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+        reload=True
+    )
+
