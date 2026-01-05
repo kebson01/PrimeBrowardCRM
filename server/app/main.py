@@ -24,6 +24,18 @@ async def lifespan(app: FastAPI):
         os.makedirs(settings.LETTERS_DIR, exist_ok=True)
         print(f"[*] Data directories created: {settings.DATA_DIR}")
         
+        # Download pre-populated database from DigitalOcean Spaces if configured
+        db_url = os.getenv("DATABASE_URL", "")
+        if db_url and not settings.DATABASE_PATH.exists():
+            print(f"[*] Downloading pre-populated database from: {db_url}")
+            import urllib.request
+            try:
+                urllib.request.urlretrieve(db_url, str(settings.DATABASE_PATH))
+                print(f"[*] Database downloaded successfully: {settings.DATABASE_PATH}")
+            except Exception as e:
+                print(f"[!] Failed to download database: {e}")
+                print(f"[*] Will create empty database instead")
+        
         # Initialize database
         init_db()
         print(f"[*] Database initialized: {settings.DATABASE_PATH}")
