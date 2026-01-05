@@ -75,11 +75,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers with /api prefix
-app.include_router(properties_router, prefix="/api")
-app.include_router(leads_router, prefix="/api")
-app.include_router(letters_router, prefix="/api")
-app.include_router(import_export_router, prefix="/api")
+# Include routers WITHOUT prefix (DigitalOcean strips /api when routing)
+app.include_router(properties_router)
+app.include_router(leads_router)
+app.include_router(letters_router)
+app.include_router(import_export_router)
 
 
 @app.get("/")
@@ -94,8 +94,29 @@ def root():
 
 
 @app.get("/api/health")
+def api_health_check():
+    """Health check endpoint for DigitalOcean (direct service access)"""
+    from .models.database import SessionLocal
+    from sqlalchemy import text
+    
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    return {
+        "status": "healthy",
+        "database": db_status,
+        "data_dir": str(settings.DATA_DIR)
+    }
+
+
+@app.get("/health")
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for direct access"""
     from .models.database import SessionLocal
     from sqlalchemy import text
     
