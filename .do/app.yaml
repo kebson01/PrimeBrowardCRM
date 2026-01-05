@@ -7,43 +7,32 @@ services:
       repo: kebson01/PrimeBrowardCRM
       branch: main
       deploy_on_push: true
+    source_dir: /
     dockerfile_path: Dockerfile.api
     http_port: 8000
     instance_count: 1
-    instance_size_slug: basic-xs
-    run_command: python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    instance_size_slug: professional-xs
     envs:
-      - key: API_HOST
-        value: "0.0.0.0"
-      - key: API_PORT
+      - key: PORT
         value: "8000"
-      - key: DATABASE_PATH
-        value: "/app/data/primebroward.db"
-      - key: DATA_DIR
-        value: "/app/data"
       - key: PYTHONUNBUFFERED
         value: "1"
     health_check:
       http_path: /api/health
-      initial_delay_seconds: 60
-      period_seconds: 10
-      timeout_seconds: 5
-      success_threshold: 1
-      failure_threshold: 5
+      port: 8000
 
   - name: frontend
     github:
       repo: kebson01/PrimeBrowardCRM
       branch: main
       deploy_on_push: true
+    source_dir: /
     dockerfile_path: Dockerfile.frontend
     http_port: 80
     instance_count: 1
     instance_size_slug: basic-xxs
-    run_command: nginx -g "daemon off;"
     routes:
       - path: /
     envs:
       - key: NODE_ENV
         value: "production"
-
